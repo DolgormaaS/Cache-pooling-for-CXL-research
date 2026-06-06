@@ -86,11 +86,11 @@ class Cache:
                 self.num_writebacks += 1
 
         if self.capulet:
-            addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))
+            evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
             r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)
             if all_caches[r] != self and random.randint(0, 1) == 1:
                 self.broadcast_offers += 1
-                all_caches[r].fill(addr)
+                all_caches[r].fill(evicted_addr)
 
         lru.tag = self.get_tag(addr)
         lru.lru = self.num_accesses
@@ -168,7 +168,7 @@ class MetadataCache(Cache):
                     self.broadcast_misses += 1
                     remote_hit = False
                     for cache in all_caches:
-                        if cache.lookup(addr):
+                        if cache.lookup(metadata_addr):        ########################## addr to metadata_addr
                             remote_hit = True
                             #exit(0)                  ###################### WHYYYYYYYYYYYYYYYYYYYYY
                             break
@@ -287,7 +287,7 @@ class CAPULET:
                 if int(host.next_access.split(',')[0]) < int(next_host.next_access.split(',')[0]):
                     next_host = host
 
-            for _ in range(random.randint(1, 5)):         ####################################### OG 1, 50000
+            for _ in range(random.randint(1, 25000)):         ####################################### OG 1, 50000
                 next_host.do_work_item()
                 if next_host.next_access == '' or next_host.total_data_accesses >= 1000000:
                     self.hosts.remove(next_host)
@@ -362,7 +362,7 @@ def test_metadata_cache(c, data_accesses):
             c.data_read(a)
         else:
             c.data_write(a)
-        c.data_read(a)
+        #c.data_read(a)                      ########################### COMMENTED THIS
     end = time.time()
 
     hit_rate = sum(c.hits) / (sum(c.hits) + sum(c.misses))
