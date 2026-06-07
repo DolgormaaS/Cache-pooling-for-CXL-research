@@ -287,7 +287,7 @@ class CAPULET:
                 if int(host.next_access.split(',')[0]) < int(next_host.next_access.split(',')[0]):
                     next_host = host
 
-            for _ in range(random.randint(1, 25000)):         ####################################### OG 1, 50000
+            for _ in range(random.randint(1, 50000)):         ####################################### OG 1, 50000
                 next_host.do_work_item()
                 if next_host.next_access == '' or next_host.total_data_accesses >= 1000000:
                     self.hosts.remove(next_host)
