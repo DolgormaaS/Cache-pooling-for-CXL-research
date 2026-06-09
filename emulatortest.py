@@ -87,10 +87,21 @@ class Cache:
 
         if self.capulet:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
-            r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)
-            if all_caches[r] != self and random.randint(0, 1) == 1:
-                self.broadcast_offers += 1
-                all_caches[r].fill(evicted_addr)
+            #r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)
+            #if all_caches[r] != self: #and random.randint(0, 1) == 1:
+            #    self.broadcast_offers += 1
+            #    all_caches[r].fill(evicted_addr)
+    
+            #for r in range(len(all_caches)):                ############################# IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
+            #    if all_caches[r].num_misses + all_caches[r].num_hits == 0:
+            #        continue
+            #    current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
+            #    #print(f"{all_caches[r]} has {current_host_miss_rates}.")
+            #    if all_caches[r] != self and current_host_miss_rates >= 50:
+            #        print(f"{all_caches} has {current_host_miss_rates}.")
+            #        self.broadcast_offeres += 1
+            #        all_caches[r].fill(evicted_addr)
+            #        break
 
         lru.tag = self.get_tag(addr)
         lru.lru = self.num_accesses
