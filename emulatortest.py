@@ -34,6 +34,7 @@ class Cache:
         self.num_write_misses = 0
         self.num_writebacks = 0
         self.num_invalidates = 0
+        self.last_remote = 0           ##################### last remote cache to send the evicted address
 
         self.addrs_to_offer = []
 
@@ -77,6 +78,7 @@ class Cache:
     def fill(self, addr, is_remote=False):
         idx = self.get_idx(addr)
         lru = self.blocks[idx][0]
+        evicted = False
         for blk in self.blocks[idx]:
             if blk.tag == -1:
                 blk.tag = self.get_tag(addr)
@@ -87,13 +89,16 @@ class Cache:
 
         if self.capulet and not is_remote:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
-            #r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)
+            #r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)          ########################### Old eviction policy
             #if all_caches[r] != self: #and random.randint(0, 1) == 1:
             #    print(f"Evicting to {r}")
             #    self.broadcast_offers += 1
             #    all_caches[r].fill(evicted_addr)
+
+            host_num = all_caches.index(self)
     
-            for r in range(len(all_caches)):                ############################# IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
+            r = self.last_remote
+            for r in range(self.last_remote, len(all_caches)):                ############################# IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
                 current_host_miss_rates = 0
                 if all_caches[r].num_misses + all_caches[r].num_hits == 0:
                     current_host_miss_rates = 100
@@ -101,10 +106,27 @@ class Cache:
                     current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
                 #print(f"{r} has {current_host_miss_rates}.")
                 if all_caches[r] != self and current_host_miss_rates >= 50:
-                    #print(f"{r} has {current_host_miss_rates}.")
+                    #print(f"Evicting from {host_num}, to {r}.")
                     self.broadcast_offers += 1
-                    all_caches[r].fill(evicted_addr, is_remote=True)
+                    all_caches[r].fill(evicted_addr, is_remote = True)
+                    self.last_remote = r + 1
+                    evicted = True
                     break
+
+            if evicted == False:
+                for i in range(r):
+                    current_host_miss_rates = 0
+                    if all_caches[i].num_misses + all_caches[i].num_hits == 0:
+                        current_host_miss_rates = 100
+                    else:
+                        current_host_miss_rates = all_caches[i].num_misses * 100 / (all_caches[i].num_misses + all_caches[i].num_hits)
+                    #print(f"{i} has {current_host_miss_rates}.")
+                    if all_caches[i] != self and current_host_miss_rates >= 50:
+                        #print(f"Evicting form {host_num}, to {i}.")
+                        self.broadcast_offers += 1
+                        all_caches[i].fill(evicted_addr, is_remote = True)
+                        self.last_remote = i + 1
+                        break
 
         lru.tag = self.get_tag(addr)
         lru.lru = self.num_accesses
@@ -293,12 +315,12 @@ class CAPULET:
         self.hosts = []
 
         for i, workload in enumerate(workloads):
-            try:                   #########################################3 FIle not found error handling
-                with open(workload, 'r') as file:
-                    f = file.read()
-            except FileNotFoundError:
-                print("File not found, switching to random mode.")
-                workload = 'random'
+            #try:                   #########################################3 FIle not found error handling
+            #    with open(workload, 'r') as file:
+            #        f = file.read()
+            #except FileNotFoundError:
+            #    print("File not found, switching to random mode.")
+            #    workload = 'random'
             self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
         self.all_hosts = self.hosts[:]
 
