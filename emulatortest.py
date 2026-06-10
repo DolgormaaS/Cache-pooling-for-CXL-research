@@ -87,18 +87,21 @@ class Cache:
 
         if self.capulet and not is_remote:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
-            r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)
+            #r = 0 if len(all_caches) == 1 else random.randint(0, len(all_caches) - 1)
             #if all_caches[r] != self: #and random.randint(0, 1) == 1:
+            #    print(f"Evicting to {r}")
             #    self.broadcast_offers += 1
             #    all_caches[r].fill(evicted_addr)
     
             for r in range(len(all_caches)):                ############################# IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
+                current_host_miss_rates = 0
                 if all_caches[r].num_misses + all_caches[r].num_hits == 0:
-                    continue
-                current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
-                #print(f"{all_caches[r]} has {current_host_miss_rates}.")
+                    current_host_miss_rates = 100
+                else:
+                    current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
+                #print(f"{r} has {current_host_miss_rates}.")
                 if all_caches[r] != self and current_host_miss_rates >= 50:
-                    print(f"{all_caches} has {current_host_miss_rates}.")
+                    #print(f"{r} has {current_host_miss_rates}.")
                     self.broadcast_offers += 1
                     all_caches[r].fill(evicted_addr, is_remote=True)
                     break
@@ -134,8 +137,8 @@ class MetadataCache(Cache):
         self.broadcast_found = 0
         self.broadcast_invalidates = 0
 
-        #super(MetadataCache, self).__init__(64 << 10, 4)      ############################## LET'S TRY SHRINKING THE METADATA CACHE SIZE TO FORCE FREQUENT EVICTIONS TO SEE IF MY EVICTION THING IS ACTUALLY WORKING
-        super(MetadataCache, self).__init__(1 << 10, 4)
+        super(MetadataCache, self).__init__(64 << 10, 4)      ############################## LET'S TRY SHRINKING THE METADATA CACHE SIZE TO FORCE FREQUENT EVICTIONS TO SEE IF MY EVICTION THING IS ACTUALLY WORKING
+        #super(MetadataCache, self).__init__(1 << 10, 4)
 
     def calculate_mac_addr(self, addr):
         return ((addr - self.range_start) // CACHE_BLOCK_SIZE) + self.integrity_levels[0] + CACHE_BLOCK_SIZE
@@ -180,6 +183,8 @@ class MetadataCache(Cache):
                     self.broadcast_misses += 1
                     remote_hit = False
                     for cache in all_caches:
+                        if cache == self:          ############################ no remote hit when it's looking the remote data from itself 
+                            continue
                         if cache.lookup(metadata_addr):        ########################## addr to metadata_addr
                             remote_hit = True
                             #exit(0)                  ###################### WHYYYYYYYYYYYYYYYYYYYYY
@@ -286,7 +291,14 @@ class CAPULET:
     def __init__(self, num_hosts, workloads):
         global all_caches
         self.hosts = []
+
         for i, workload in enumerate(workloads):
+            try:                   #########################################3 FIle not found error handling
+                with open(workload, 'r') as file:
+                    f = file.read()
+            except FileNotFoundError:
+                print("File not found, switching to random mode.")
+                workload = 'random'
             self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
         self.all_hosts = self.hosts[:]
 
@@ -299,7 +311,7 @@ class CAPULET:
                 if int(host.next_access.split(',')[0]) < int(next_host.next_access.split(',')[0]):
                     next_host = host
 
-            for _ in range(random.randint(1, 50000)):         ####################################### OG 1, 50000
+            for _ in range(random.randint(1, 25000)):         ####################################### OG 1, 50000
                 next_host.do_work_item()
                 if next_host.next_access == '' or next_host.total_data_accesses >= 1000000:
                     self.hosts.remove(next_host)
@@ -320,6 +332,12 @@ class CAPULET:
         miss_traffic = 0
         found_traffic = 0
         invalidate_traffic = 0
+
+        try:
+            with open('stats.txt', 'r') as file:
+                f = file.read()
+        except FileNotFoundError:
+            f = open('stats.txt', 'w')
 
         f = open('stats.txt', 'w')        ###################################### remove TOP_DIR
 
@@ -393,5 +411,9 @@ if __name__ == '__main__':
         c.dump_stats()                                        ######################################### ADDED dump_stats()
     else:
         c = CAPULET(int(sys.argv[1]), [sys.argv[2]] * int(sys.argv[1]))
-        c.do_work()
+        if c.hosts[0].workload == 'random':                   ####################################### Checking if the mode has switched to random
+            c.do_random_work()
+        else:
+            c.do_work()
+        #c.do_work()
         c.dump_stats()
