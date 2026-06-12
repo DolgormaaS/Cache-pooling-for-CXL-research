@@ -19,6 +19,7 @@ class Cache:
         def __init__(self):
             self.tag = -1
             self.lru = -1
+            self.cache_id = -1     ########################## Cache ID to differentiate between local and remote cache
 
     def __init__(self, size, assoc):
         self.size = size
@@ -75,15 +76,16 @@ class Cache:
             self.num_write_misses += 1
         return False
 
-    def fill(self, addr, is_remote=False):
+    def fill(self, addr, cache_id, is_remote=False):
         idx = self.get_idx(addr)
         lru = self.blocks[idx][0]
         evicted = False
+        host_num = all_caches.index(self)
         for blk in self.blocks[idx]:
             if blk.tag == -1:
                 blk.tag = self.get_tag(addr)
                 return
-            elif blk.lru < lru.lru:
+            elif blk.lru < lru.lru and host_num != blk.cache_id:
                 lru = blk
                 self.num_writebacks += 1
 
@@ -94,8 +96,6 @@ class Cache:
             #    print(f"Evicting to {r}")
             #    self.broadcast_offers += 1
             #    all_caches[r].fill(evicted_addr)
-
-            host_num = all_caches.index(self)
     
             r = self.last_remote
             for r in range(self.last_remote, len(all_caches)):                ############################# IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
@@ -106,9 +106,9 @@ class Cache:
                     current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
                 #print(f"{r} has {current_host_miss_rates}.")
                 if all_caches[r] != self and current_host_miss_rates >= 50:
-                    #print(f"Evicting from {host_num}, to {r}.")
+                    print(f"Evicting {cache_id} from {host_num}, to {r} with {current_host_miss_rates} miss rates.")
                     self.broadcast_offers += 1
-                    all_caches[r].fill(evicted_addr, is_remote = True)
+                    all_caches[r].fill(evicted_addr, cache_id, is_remote = True)
                     self.last_remote = r + 1
                     evicted = True
                     break
@@ -122,14 +122,18 @@ class Cache:
                         current_host_miss_rates = all_caches[i].num_misses * 100 / (all_caches[i].num_misses + all_caches[i].num_hits)
                     #print(f"{i} has {current_host_miss_rates}.")
                     if all_caches[i] != self and current_host_miss_rates >= 50:
-                        #print(f"Evicting form {host_num}, to {i}.")
+                        print(f"Evicting {cache_id} form {host_num}, to {i} with {current_host_miss_rates} miss rates.")
                         self.broadcast_offers += 1
-                        all_caches[i].fill(evicted_addr, is_remote = True)
+                        all_caches[i].fill(evicted_addr, cache_id, is_remote = True)
                         self.last_remote = i + 1
                         break
 
+        else:
+            print(f"Caching {cache_id} to remote host {host_num}.")
+
         lru.tag = self.get_tag(addr)
         lru.lru = self.num_accesses
+        lru.cache_id = cache_id
         return
 
 class MetadataCache(Cache):
@@ -181,10 +185,11 @@ class MetadataCache(Cache):
     def data_read(self, addr):
         mac_addr = self.calculate_mac_addr(addr)
         ctr_addr = self.calculate_counter_addr(addr)
+        cache_id = all_caches.index(self)
 
         if not self.access(mac_addr, True):
             self.misses[-1] += 1
-            self.fill(mac_addr)
+            self.fill(mac_addr, cache_id)
         else:
             self.hits[-1] += 1
 
@@ -223,15 +228,16 @@ class MetadataCache(Cache):
 
         for miss_addr in to_fill:
             self.broadcast_invalidates += 1
-            self.fill(miss_addr)
+            self.fill(miss_addr, cache_id)
 
     def data_write(self, addr):
         mac_addr = self.calculate_mac_addr(addr)
         ctr_addr = self.calculate_counter_addr(addr)
+        cache_id = all_caches.index(self)
 
         if not self.access(mac_addr, False):
             self.misses[-1] += 1
-            self.fill(mac_addr)
+            self.fill(mac_addr, cache_id)
         else:
             self.hits[-1] += 1
 
@@ -252,7 +258,7 @@ class MetadataCache(Cache):
                 metadata_addr = self.calculate_parent_addr(metadata_addr, level)
 
             for miss_addr in to_fill:
-                self.fill(miss_addr)
+                self.fill(miss_addr, cache_id)
 
 class Host:
     def __init__(self, workload, range_start, range_end, data_accesses, capulet=False):
@@ -280,6 +286,7 @@ class Host:
         else:
             while self.next_access != '':
                 time, read, addr, _ = self.next_access.split(',')
+                #host_num = all_caches.index(self)
                 if read == '1':
                     self.metadata_cache.data_read(addr + self.range_start)
                 else:
@@ -292,15 +299,16 @@ class Host:
         if self.workload == 'random':
             if self.data_accesses > 0:
                 a = random.randint(self.range_start, self.range_end)
-                if self.data_accesses % 10000 == 0:
-                    print(f'accessing data address {a} on access {self.total_data_accesses - self.data_accesses}')
+                #if self.data_accesses % 10000 == 0:
+                #    print(f'accessing data address {a} on access {self.total_data_accesses - self.data_accesses}')
                 self.metadata_cache.data_read(a)         ################################### SHOULD I ALSO DO FOR data_write()?
                 self.data_accesses -= 1
         else:
             if self.next_access != '':
                 time, read, addr, _ = self.next_access.split(',')
-                if self.total_data_accesses % 10000 == 0:
-                    print(f'accessing data address {addr} on access {self.total_data_accesses}')
+                #if self.total_data_accesses % 10000 == 0:
+                #    print(f'accessing data address {addr} on access {self.total_data_accesses}')
+                #host_num = all_caches.index(self)
                 if read == '1':
                     self.metadata_cache.data_read(int(addr) - (2 << 30))
                 else:
@@ -315,12 +323,6 @@ class CAPULET:
         self.hosts = []
 
         for i, workload in enumerate(workloads):
-            #try:                   #########################################3 FIle not found error handling
-            #    with open(workload, 'r') as file:
-            #        f = file.read()
-            #except FileNotFoundError:
-            #    print("File not found, switching to random mode.")
-            #    workload = 'random'
             self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
         self.all_hosts = self.hosts[:]
 
@@ -333,7 +335,7 @@ class CAPULET:
                 if int(host.next_access.split(',')[0]) < int(next_host.next_access.split(',')[0]):
                     next_host = host
 
-            for _ in range(random.randint(1, 25000)):         ####################################### OG 1, 50000
+            for _ in range(random.randint(1, 50000)):         ####################################### OG 1, 50000
                 next_host.do_work_item()
                 if next_host.next_access == '' or next_host.total_data_accesses >= 1000000:
                     self.hosts.remove(next_host)
