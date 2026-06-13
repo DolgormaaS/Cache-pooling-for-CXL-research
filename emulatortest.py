@@ -1,6 +1,7 @@
 import math
 import random
 import sys
+import os
 
 # system config
 CACHE_BLOCK_SIZE = 64
@@ -323,6 +324,9 @@ class CAPULET:
         self.hosts = []
 
         for i, workload in enumerate(workloads):
+            if not os.path.isfile(workload):                         ########################################## Tracce file not found error handling
+                print("File not found, switching to random mode.")
+                workload = 'random'
             self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
         self.all_hosts = self.hosts[:]
 
@@ -357,10 +361,7 @@ class CAPULET:
         found_traffic = 0
         invalidate_traffic = 0
 
-        try:
-            with open('stats.txt', 'r') as file:
-                f = file.read()
-        except FileNotFoundError:
+        if not os.path.isfile('stats.txt'):
             f = open('stats.txt', 'w')
 
         f = open('stats.txt', 'w')        ###################################### remove TOP_DIR
