@@ -83,6 +83,8 @@ class Cache:
         evicted = False
         host_num = all_caches.index(self)
         to_cache = False
+        if lru.cache_id == host_num:
+            to_cache = True
         for blk in self.blocks[idx]:
             if blk.tag == -1:
                 blk.tag = self.get_tag(addr)
@@ -93,7 +95,7 @@ class Cache:
                 to_cache = True
 
         if to_cache == False and is_remote:
-            print("Not accepting remote blocks, evicting to main memory.")
+            print("Not accepting remote blocks, evicting to main memory.")   ############################### Maybe later make this to signal the local host that it's not accepting so the host can move on to the next remote host
             return
 
         if self.capulet and not is_remote:
