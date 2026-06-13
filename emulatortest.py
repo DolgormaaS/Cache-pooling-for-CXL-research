@@ -51,7 +51,7 @@ class Cache:
 
         idx = self.get_idx(addr)
         for blk in self.blocks[idx]:
-            if blk.tag == self.get_tag(addr):
+            if blk.tag == self.get_tag(addr) and blk.cache_id == all_caches.index(self):   ####################### Don't read other host's cache
                 return True
 
         return False
@@ -61,7 +61,7 @@ class Cache:
 
         idx = self.get_idx(addr)
         for blk in self.blocks[idx]:
-            if blk.tag == self.get_tag(addr):
+            if blk.tag == self.get_tag(addr) and blk.cache_id == all_caches.index(self):
                 blk.lru = self.num_accesses
                 self.num_hits += 1
                 if read:
@@ -82,13 +82,19 @@ class Cache:
         lru = self.blocks[idx][0]
         evicted = False
         host_num = all_caches.index(self)
+        to_cache = False
         for blk in self.blocks[idx]:
             if blk.tag == -1:
                 blk.tag = self.get_tag(addr)
                 return
-            elif blk.lru < lru.lru and host_num != blk.cache_id:
+            elif blk.lru < lru.lru and host_num == blk.cache_id:
                 lru = blk
                 self.num_writebacks += 1
+                to_cache = True
+
+        if to_cache == False and is_remote:
+            print("Not accepting remote blocks, evicting to main memory.")
+            return
 
         if self.capulet and not is_remote:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
