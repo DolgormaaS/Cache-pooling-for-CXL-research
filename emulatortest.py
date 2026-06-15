@@ -80,9 +80,9 @@ class Cache:
     def fill(self, addr, cache_id, is_remote=False):
         idx = self.get_idx(addr)
         lru = self.blocks[idx][0]
-        evicted = False
         host_num = all_caches.index(self)
         to_cache = False
+        
         if lru.cache_id == host_num:
             to_cache = True
         for blk in self.blocks[idx]:
@@ -96,7 +96,6 @@ class Cache:
 
         if to_cache == False and is_remote:
             print("Not accepting remote blocks, evicting to main memory.")   ############################### Maybe later make this to signal the local host that it's not accepting so the host can move on to the next remote host
-            return
 
         if self.capulet and not is_remote:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
@@ -106,8 +105,8 @@ class Cache:
             #    self.broadcast_offers += 1
             #    all_caches[r].fill(evicted_addr)
     
-            r = self.last_remote
-            for r in range(self.last_remote, len(all_caches)):                ############################# IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
+            for i in range(len(all_caches)):    ########## IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
+                r = (self.last_remote + i) % len(all_caches)
                 current_host_miss_rates = 0
                 if all_caches[r].num_misses + all_caches[r].num_hits == 0:
                     current_host_miss_rates = 100
@@ -119,23 +118,7 @@ class Cache:
                     self.broadcast_offers += 1
                     all_caches[r].fill(evicted_addr, cache_id, is_remote = True)
                     self.last_remote = r + 1
-                    evicted = True
                     break
-
-            if evicted == False:
-                for i in range(r):
-                    current_host_miss_rates = 0
-                    if all_caches[i].num_misses + all_caches[i].num_hits == 0:
-                        current_host_miss_rates = 100
-                    else:
-                        current_host_miss_rates = all_caches[i].num_misses * 100 / (all_caches[i].num_misses + all_caches[i].num_hits)
-                    #print(f"{i} has {current_host_miss_rates}.")
-                    if all_caches[i] != self and current_host_miss_rates >= 50:
-                        print(f"Evicting {cache_id} form {host_num}, to {i} with {current_host_miss_rates} miss rates.")
-                        self.broadcast_offers += 1
-                        all_caches[i].fill(evicted_addr, cache_id, is_remote = True)
-                        self.last_remote = i + 1
-                        break
 
         else:
             print(f"Caching {cache_id} to remote host {host_num}.")
@@ -333,8 +316,8 @@ class CAPULET:
 
         for i, workload in enumerate(workloads):
             if not os.path.isfile(workload):                         ########################################## Tracce file not found error handling
-                print("File not found, switching to random mode.")
-                workload = 'random'
+                print(f"{workload}: File not found, terminating.")
+                exit(0)
             self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
         self.all_hosts = self.hosts[:]
 
