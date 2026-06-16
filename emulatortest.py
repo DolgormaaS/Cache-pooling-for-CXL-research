@@ -427,9 +427,5 @@ if __name__ == '__main__':
         c.dump_stats()                                        ######################################### ADDED dump_stats()
     else:
         c = CAPULET(int(sys.argv[1]), [sys.argv[2]] * int(sys.argv[1]))
-        if c.hosts[0].workload == 'random':                   ####################################### Checking if the mode has switched to random
-            c.do_random_work()
-        else:
-            c.do_work()
-        #c.do_work()
+        c.do_work()
         c.dump_stats()
