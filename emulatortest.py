@@ -46,12 +46,12 @@ class Cache:
     def get_tag(self, addr):
         return addr >> int(math.log(CACHE_BLOCK_SIZE, 2) + math.log(CACHE_BLOCK_SIZE, 2))
 
-    def lookup(self, addr):
+    def lookup(self, addr, cache_id):
         self.num_accesses += 1
 
         idx = self.get_idx(addr)
         for blk in self.blocks[idx]:
-            if blk.tag == self.get_tag(addr) and blk.cache_id == all_caches.index(self):   ####################### Don't read other host's cache
+            if blk.tag == self.get_tag(addr) and blk.cache_id == cache_id:
                 return True
 
         return False
@@ -81,21 +81,23 @@ class Cache:
         idx = self.get_idx(addr)
         lru = self.blocks[idx][0]
         host_num = all_caches.index(self)
-        to_cache = False
+        #to_cache = False ####################### Need to figure this out
         
-        if lru.cache_id == host_num:
-            to_cache = True
+        #if lru.cache_id == host_num:
+        #    to_cache = True
         for blk in self.blocks[idx]:
+            #if lru.cache_id == host_num:
+            #    to_cache = True
             if blk.tag == -1:
                 blk.tag = self.get_tag(addr)
                 return
-            elif blk.lru < lru.lru and host_num == blk.cache_id:
+            elif blk.lru < lru.lru:
                 lru = blk
                 self.num_writebacks += 1
                 to_cache = True
 
-        if to_cache == False and is_remote:
-            print("Not accepting remote blocks, evicting to main memory.")   ############################### Maybe later make this to signal the local host that it's not accepting so the host can move on to the next remote host
+        #if to_cache == False and is_remote:
+        #    print("Not accepting remote blocks, evicting to main memory.")   ############################### Maybe later make this to signal the local host that it's not accepting so the host can move on to the next remote host
 
         if self.capulet and not is_remote:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
@@ -204,7 +206,7 @@ class MetadataCache(Cache):
                     for cache in all_caches:
                         if cache == self:          ############################ no remote hit when it's looking the remote data from itself 
                             continue
-                        if cache.lookup(metadata_addr):        ########################## addr to metadata_addr
+                        if cache.lookup(metadata_addr, cache_id):        ########################## addr to metadata_addr
                             remote_hit = True
                             #exit(0)                  ###################### WHYYYYYYYYYYYYYYYYYYYYY
                             break
@@ -278,7 +280,6 @@ class Host:
         else:
             while self.next_access != '':
                 time, read, addr, _ = self.next_access.split(',')
-                #host_num = all_caches.index(self)
                 if read == '1':
                     self.metadata_cache.data_read(addr + self.range_start)
                 else:
@@ -300,7 +301,6 @@ class Host:
                 time, read, addr, _ = self.next_access.split(',')
                 #if self.total_data_accesses % 10000 == 0:
                 #    print(f'accessing data address {addr} on access {self.total_data_accesses}')
-                #host_num = all_caches.index(self)
                 if read == '1':
                     self.metadata_cache.data_read(int(addr) - (2 << 30))
                 else:
