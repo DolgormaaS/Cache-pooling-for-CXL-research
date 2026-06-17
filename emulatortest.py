@@ -176,83 +176,138 @@ class MetadataCache(Cache):
         else:
             return self.integrity_levels[0]
 
-    def data_read(self, addr):
+    def data_read_write(self, addr, read):
         mac_addr = self.calculate_mac_addr(addr)
         ctr_addr = self.calculate_counter_addr(addr)
         cache_id = all_caches.index(self)
 
-        if not self.access(mac_addr, True):
+        if not self.access(mac_addr, read):
             self.misses[-1] += 1
             self.fill(mac_addr, cache_id)
         else:
             self.hits[-1] += 1
 
+        num_iter = 2
+        if read:
+            num_iter = 1
 
-        metadata_addr = ctr_addr
-        to_fill = []
-        for level in range(len(self.integrity_levels) - 1)[::-1]:
-            if metadata_addr == self.integrity_levels[0]:
-                # reached the root
-                break
-            elif self.access(metadata_addr, True):
-                # trusted value
-                self.hits[level] += 1
-                break
-            else:
-                self.misses[level] += 1
-                if self.capulet:
-                    self.broadcast_misses += 1
-                    remote_hit = False
-                    for cache in all_caches:
-                        if cache == self:          ############################ no remote hit when it's looking the remote data from itself 
-                            continue
-                        if cache.lookup(metadata_addr, cache_id):        ########################## addr to metadata_addr
-                            remote_hit = True
-                            #exit(0)                  ###################### WHYYYYYYYYYYYYYYYYYYYYY
-                            break
-                    if remote_hit:
-                        # remote hit
-                        self.remote_hits[level] += 1
-                        self.broadcast_found += 1
-                        break
-
-                to_fill.append(metadata_addr)
-
-            metadata_addr = self.calculate_parent_addr(metadata_addr, level)
-
-        for miss_addr in to_fill:
-            self.broadcast_invalidates += 1
-            self.fill(miss_addr, cache_id)
-
-    def data_write(self, addr):
-        mac_addr = self.calculate_mac_addr(addr)
-        ctr_addr = self.calculate_counter_addr(addr)
-        cache_id = all_caches.index(self)
-
-        if not self.access(mac_addr, False):
-            self.misses[-1] += 1
-            self.fill(mac_addr, cache_id)
-        else:
-            self.hits[-1] += 1
-
-        for x in range(2):
+        for i in range(num_iter):
             metadata_addr = ctr_addr
             to_fill = []
             for level in range(len(self.integrity_levels) - 1)[::-1]:
                 if metadata_addr == self.integrity_levels[0]:
                     # reached the root
                     break
-                elif self.access(metadata_addr, True if x == 0 else False):
+                elif self.access(metadata_addr, read or i == 0):
                     # trusted value
                     self.hits[level] += 1
+                    if read:
+                        break         ############################### ?
                 else:
                     self.misses[level] += 1
+                    if self.capulet and read:        ################################# ?
+                        self.broadcast_misses += 1
+                        remote_hit = False
+                        for cache in all_caches:
+                            if cache == self:     
+                                continue
+                            if cache.lookup(metadata_addr, cache_id):    
+                                remote_hit = True
+                                break
+                        if remote_hit:
+                            # remote hit
+                            self.remote_hits[level] += 1
+                            self.broadcast_found += 1
+                            break
+
                     to_fill.append(metadata_addr)
 
                 metadata_addr = self.calculate_parent_addr(metadata_addr, level)
 
             for miss_addr in to_fill:
+                if read:
+                    self.broadcast_invalidates += 1
                 self.fill(miss_addr, cache_id)
+
+
+    #def data_read(self, addr):
+    #    mac_addr = self.calculate_mac_addr(addr)
+    
+    #    ctr_addr = self.calculate_counter_addr(addr)
+    #    cache_id = all_caches.index(self)
+
+    #    if not self.access(mac_addr, True):
+    #        self.misses[-1] += 1
+    #        self.fill(mac_addr, cache_id)
+    #    else:
+    #        self.hits[-1] += 1
+
+
+    #    metadata_addr = ctr_addr
+    #    to_fill = []
+    #    for level in range(len(self.integrity_levels) - 1)[::-1]:
+    #        if metadata_addr == self.integrity_levels[0]:
+    #            # reached the root
+    #            break
+    #        elif self.access(metadata_addr, True):
+    #            # trusted value
+    #            self.hits[level] += 1
+    #            break
+    #        else:
+    #            self.misses[level] += 1
+    #            if self.capulet:
+    #                self.broadcast_misses += 1
+    #                remote_hit = False
+    #                for cache in all_caches:
+    #                    if cache == self:          ############################ no remote hit when it's looking the remote data from itself 
+    #                        continue
+    #                    if cache.lookup(metadata_addr, cache_id):        ########################## addr to metadata_addr
+    #                        remote_hit = True
+    #                        #exit(0)                  ###################### WHYYYYYYYYYYYYYYYYYYYYY
+    #                        break
+    #                if remote_hit:
+    #                    # remote hit
+    #                    self.remote_hits[level] += 1
+    #                    self.broadcast_found += 1
+    #                    break
+
+    #            to_fill.append(metadata_addr)
+
+    #        metadata_addr = self.calculate_parent_addr(metadata_addr, level)
+
+    #    for miss_addr in to_fill:
+    #        self.broadcast_invalidates += 1
+    #        self.fill(miss_addr, cache_id)
+
+    #def data_write(self, addr):
+    #    mac_addr = self.calculate_mac_addr(addr)
+    #    ctr_addr = self.calculate_counter_addr(addr)
+    #    cache_id = all_caches.index(self)
+
+    #    if not self.access(mac_addr, False):
+    #        self.misses[-1] += 1
+    #        self.fill(mac_addr, cache_id)
+    #    else:
+    #        self.hits[-1] += 1
+
+    #    for x in range(2):
+    #        metadata_addr = ctr_addr
+    #        to_fill = []
+    #        for level in range(len(self.integrity_levels) - 1)[::-1]:
+    #            if metadata_addr == self.integrity_levels[0]:
+    #                # reached the root
+    #                break
+    #            elif self.access(metadata_addr, True if x == 0 else False):
+    #                # trusted value
+    #                self.hits[level] += 1
+    #            else:
+    #                self.misses[level] += 1
+    #                to_fill.append(metadata_addr)
+
+    #            metadata_addr = self.calculate_parent_addr(metadata_addr, level)
+
+    #        for miss_addr in to_fill:
+    #            self.fill(miss_addr, cache_id)
 
 class Host:
     def __init__(self, workload, range_start, range_end, data_accesses, capulet=False):
@@ -275,15 +330,18 @@ class Host:
         if self.workload == 'random':
             while self.data_accesses > 0:
                 a = random.randint(self.range_start, self.range_end)
-                self.metadata_cache.data_read(a)
+                #self.metadata_cache.data_read(a)
+                self.metadata_cache.data_read_write(a, True)
                 self.data_accesses -= 1
         else:
             while self.next_access != '':
                 time, read, addr, _ = self.next_access.split(',')
                 if read == '1':
-                    self.metadata_cache.data_read(addr + self.range_start)
+                    #self.metadata_cache.data_read(addr + self.range_start)
+                    self.metadata_cache.data_read_write(addr + self.range_start, True)
                 else:
-                    self.metadata_cache.data_write(addr + self.range_start)
+                    #self.metadata_cache.data_write(addr + self.range_start)
+                    self.metadata_cache.data_read_write(addr + self.range_start, False)
 
                 self.total_data_accesses += 1
                 self.next_access = self.f.readline()
@@ -302,9 +360,11 @@ class Host:
                 #if self.total_data_accesses % 10000 == 0:
                 #    print(f'accessing data address {addr} on access {self.total_data_accesses}')
                 if read == '1':
-                    self.metadata_cache.data_read(int(addr) - (2 << 30))
+                    #self.metadata_cache.data_read(int(addr) - (2 << 30))
+                    self.metadata_cache.data_read_write(int(addr) - (2 << 30), True)
                 else:
-                    self.metadata_cache.data_write(int(addr) - (2 << 30))
+                    #self.metadata_cache.data_write(int(addr) - (2 << 30))
+                    self.metadata_cache.data_read_write(int(addr) - (2 << 30), False)
 
                 self.total_data_accesses += 1
                 self.next_access = self.f.readline()
@@ -382,7 +442,6 @@ class CAPULET:
         f.write(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
         f.close()
 
-
 def test_cache(c):
     hits = 0
     misses = 0
@@ -405,9 +464,11 @@ def test_metadata_cache(c, data_accesses):
     for _ in range(data_accesses):
         a = random.randint(0, MEM_SIZE)
         if random.randint(0, 1) == 0:              ############################## UNCOMMENTED IF ELSE
-            c.data_read(a)
+            #c.data_read(a)
+            c.data_read_write(a, True)
         else:
-            c.data_write(a)
+            #c.data_write(a)
+            c.data_read_write(a, False)
         #c.data_read(a)                      ########################### COMMENTED THIS
     end = time.time()
 
