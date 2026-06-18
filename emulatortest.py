@@ -373,11 +373,33 @@ class CAPULET:
     def __init__(self, num_hosts, workloads):
         global all_caches
         self.hosts = []
-        #file_size = os.path.getsize(workloads)    #################### chunk 
-        #chunk = file_size / num_hosts
 
-        for i, workload in enumerate(workloads):
-            self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
+        #for i, workload in enumerate(workloads):
+        #    self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
+
+        with open(workloads, 'r') as file:
+            lines = file.readlines()
+
+        header_end = 0
+        for i, line in enumerate(lines):
+            if 'REAL SIMULATION' in line:
+                header_end = i + 1
+                break
+
+        trace_lines = lines[header_end:]
+        chunk_size = math.ceil(len(trace_lines) / num_hosts)
+
+        for i in range(num_hosts):
+            chunk = trace_lines[chunk_size * i : chunk_size * (i + 1)]
+            if not chunk:
+                break
+            
+            temporary = f'temporary.txt'
+            with open(temporary, 'w') as file:
+                file.write('REAL SIMULATION\n')
+                file.writelines(chunk)
+            self.hosts.append(Host(temporary, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
+
         self.all_hosts = self.hosts[:]
 
         all_caches = [host.metadata_cache for host in self.all_hosts]
@@ -489,6 +511,7 @@ if __name__ == '__main__':
         if not os.path.isfile(sys.argv[2]):
             print(f"{sys.argv[2]}: File not found, terminating.")
             exit(0)
-        c = CAPULET(int(sys.argv[1]), [sys.argv[2]] * int(sys.argv[1]))
+        #c = CAPULET(int(sys.argv[1]), [sys.argv[2]] * int(sys.argv[1]))
+        c = CAPULET(int(sys.argv[1]), sys.argv[2])
         c.do_work()
         c.dump_stats()
