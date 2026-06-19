@@ -44,7 +44,8 @@ class Cache:
         return addr >> int(math.log(CACHE_BLOCK_SIZE, 2)) & (self.num_sets - 1)
 
     def get_tag(self, addr):
-        return addr >> int(math.log(CACHE_BLOCK_SIZE, 2) + math.log(CACHE_BLOCK_SIZE, 2))
+        #return addr >> int(math.log(CACHE_BLOCK_SIZE, 2) + math.log(CACHE_BLOCK_SIZE, 2))
+        return addr >> int(math.log(CACHE_BLOCK_SIZE, 2) + math.log(self.num_sets, 2))    ######## Might be some mismatch happening
 
     def lookup(self, addr, cache_id):
         self.num_accesses += 1
@@ -52,6 +53,7 @@ class Cache:
         idx = self.get_idx(addr)
         for blk in self.blocks[idx]:
             if blk.tag == self.get_tag(addr) and blk.cache_id == cache_id:
+                
                 return True
 
         return False
@@ -89,7 +91,9 @@ class Cache:
             #if lru.cache_id == host_num:
             #    to_cache = True
             if blk.tag == -1:
-                blk.tag = self.get_tag(addr)
+                blk.tag = self.get_tag(addr)     ################## This was only updating tag before
+                blk.lru = self.num_accesses
+                blk.cache_id = cache_id
                 return
             elif blk.lru < lru.lru:
                 lru = blk
