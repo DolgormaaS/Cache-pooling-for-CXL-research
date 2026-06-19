@@ -373,28 +373,31 @@ class CAPULET:
     def __init__(self, num_hosts, workloads):
         global all_caches
         self.hosts = []
+        all_lines = []
 
         #for i, workload in enumerate(workloads):
         #    self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
-
-        with open(workloads, 'r') as file:
-            lines = file.readlines()
-
-        header_end = 0
-        for i, line in enumerate(lines):
-            if 'REAL SIMULATION' in line:
-                header_end = i + 1
-                break
-
-        trace_lines = lines[header_end:]
-        chunk_size = math.ceil(len(trace_lines) / num_hosts)
+        for workload in workloads:
+            with open(workload, 'r') as file:
+                lines = file.readlines()
+                header_end = 0
+                for i, line in enumerate(lines):
+                    if 'REAL SIMULATION' in line:
+                        header_end = i + 1
+                        break
+                all_lines.extend(lines[header_end:])
+        
+        #chunk_size = math.ceil(len(trace_lines) / num_hosts)
+        chunk_size = math.ceil(len(all_lines) / num_hosts)
 
         for i in range(num_hosts):
-            chunk = trace_lines[chunk_size * i : chunk_size * (i + 1)]
+            #chunk = trace_lines[chunk_size * i : chunk_size * (i + 1)]
+            chunk = all_lines[chunk_size * i : chunk_size * (i + 1)]
             if not chunk:
                 break
             
-            temporary = f'temporary.txt'
+            temporary = f'temporary_{i}.txt'
+            print(os.path.getsize('temporary.txt'))
             with open(temporary, 'w') as file:
                 file.write('REAL SIMULATION\n')
                 file.writelines(chunk)
@@ -506,12 +509,16 @@ if __name__ == '__main__':
     if sys.argv[1] == 'random':
         c = CAPULET(int(sys.argv[2]), ['random'] * int(sys.argv[2]))
         c.do_random_work()
-        c.dump_stats()                                        ######################################### ADDED dump_stats()
+        c.dump_stats()                                        ########################## ADDED dump_stats()
     else:
-        if not os.path.isfile(sys.argv[2]):
-            print(f"{sys.argv[2]}: File not found, terminating.")
-            exit(0)
+        list_trace = []
+        for i in range(2, len(sys.argv)):
+            if not os.path.isfile(sys.argv[i]):
+                print(f"{sys.argv[i]}: File not found, terminating.")
+                exit(0)
+            list_trace.append(sys.argv[i])
         #c = CAPULET(int(sys.argv[1]), [sys.argv[2]] * int(sys.argv[1]))
-        c = CAPULET(int(sys.argv[1]), sys.argv[2])
+        #c = CAPULET(int(sys.argv[1]), sys.argv[2])
+        c = CAPULET(int(sys.argv[1]), list_trace)
         c.do_work()
         c.dump_stats()
