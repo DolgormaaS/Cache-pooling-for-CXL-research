@@ -48,7 +48,6 @@ class Cache:
         return addr >> int(math.log(CACHE_BLOCK_SIZE, 2) + math.log(self.num_sets, 2))    ######## Might be some mismatch happening
 
     def lookup(self, addr, cache_id):
-        self.num_accesses += 1
 
         idx = self.get_idx(addr)
         for blk in self.blocks[idx]:
@@ -118,7 +117,6 @@ class Cache:
                     current_host_miss_rates = 100
                 else:
                     current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
-                #print(f"{r} has {current_host_miss_rates}.")
                 if all_caches[r] != self and current_host_miss_rates >= 50:
                     print(f"Evicting {cache_id} from {host_num}, to {r} with {current_host_miss_rates} miss rates.")
                     self.broadcast_offers += 1
@@ -401,7 +399,6 @@ class CAPULET:
                 break
             
             temporary = f'temporary_{i}.txt'
-            print(os.path.getsize('temporary.txt'))
             with open(temporary, 'w') as file:
                 file.write('REAL SIMULATION\n')
                 file.writelines(chunk)
@@ -439,6 +436,7 @@ class CAPULET:
         miss_traffic = 0
         found_traffic = 0
         invalidate_traffic = 0
+        avg_hit_rate = 0
 
         if not os.path.isfile('stats.txt'):
             f = open('stats.txt', 'w')
@@ -448,6 +446,7 @@ class CAPULET:
         for i in range(len(self.all_hosts)):
             host = self.all_hosts[i]
             hit_rate = sum(host.metadata_cache.hits) / (sum(host.metadata_cache.hits) + sum(host.metadata_cache.misses))
+            avg_hit_rate += hit_rate
             read_hit_rate = host.metadata_cache.num_read_hits / (host.metadata_cache.num_read_hits + host.metadata_cache.num_read_misses)
             if host.metadata_cache.num_write_hits + host.metadata_cache.num_write_misses != 0:
                 write_hit_rate = host.metadata_cache.num_write_hits / (host.metadata_cache.num_write_hits + host.metadata_cache.num_write_misses)         #################################### Uncommented this
@@ -465,8 +464,9 @@ class CAPULET:
             found_traffic += host.metadata_cache.broadcast_found
             total_traffic += host.metadata_cache.broadcast_invalidates
             invalidate_traffic += host.metadata_cache.broadcast_invalidates
+        avg_hit_rate = avg_hit_rate / len(self.all_hosts)
 
-        print(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
+        print(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}\naverage hit rate:\t{avg_hit_rate}')
         f.write(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
         f.close()
 
