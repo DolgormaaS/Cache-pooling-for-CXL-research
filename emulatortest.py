@@ -377,32 +377,110 @@ class CAPULET:
         self.hosts = []
         all_lines = []
 
+        if num_hosts == len(workloads):
+            i = 0
+            for workload in workloads:
+                self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
+                i += 1
+
+        elif num_hosts <= len(workloads):
+            #1 or more hosts run 1 or more workloads
+            workloads_per_host = int(len(workloads) / num_hosts)
+            additional_workloads = int(len(workloads) % num_hosts)
+
+            for i in range(num_hosts):
+                amount_workloads = workloads_per_host
+                if additional_workloads != 0:
+                    amount_workloads += 1
+                    additional_workloads -= 1
+
+                read_workloads = workloads[:amount_workloads]
+
+                for workload in read_workloads: 
+                    with open(workload, 'r') as file:
+                        lines = file.readlines()
+                        header_end = 0
+                        for r, line in enumerate(lines):
+                            if 'REAL SIMULATION' in line:
+                                header_end = r + 1
+                                break
+                        all_lines.extend(lines[header_end:])
+
+                temporary = f'temporary_{i}.txt'
+                with open(temporary, 'w') as file:
+                    file.write('REAL SIMULATION\n')
+                    file.writelines(all_lines)
+                    self.hosts.append(Host(temporary, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
+
+                workloads = workloads[amount_workloads:]
+                all_lines.clear()
+
+        else:
+            #multiple hosts share same file: Chunking is useful here.
+            hosts_per_workload = int(num_hosts / len(workloads))
+            additional_hosts = int(num_hosts % len(workloads))
+            last_host = 0
+
+            for workload in workloads:
+                amount_hosts = hosts_per_workload
+                if additional_hosts != 0:
+                    amount_hosts += 1
+                    additional_hosts -= 1
+             
+                with open(workload, 'r') as file:
+                    lines = file.readlines()
+                    header_end = 0
+                    for i, line in enumerate(lines):
+                        if 'REAL SIMULATION' in line:
+                            header_end = i + 1
+                            break
+                    all_lines.extend(lines[header_end:]) 
+
+                chunk_size = math.ceil(len(all_lines) / amount_hosts)
+
+                for i in range(last_host, amount_hosts + last_host):
+                    r = i - last_host
+                    chunk = all_lines[chunk_size * r : chunk_size * (r + 1)]
+                    if not chunk:
+                        break
+
+                    temporary = f'temporary_{i}.txt'
+                    with open(temporary, 'w') as file:
+                        file.write('REAL SIMULATION\n')
+                        file.writelines(chunk)
+                    self.hosts.append(Host(temporary, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
+                all_lines.clear()
+                last_host  = amount_hosts + last_host
+
+
         #for i, workload in enumerate(workloads):
         #    self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 100 if workload == 'random' else 0, capulet=True))   ############################## WORKLOAD 100
-        for workload in workloads:
-            with open(workload, 'r') as file:
-                lines = file.readlines()
-                header_end = 0
-                for i, line in enumerate(lines):
-                    if 'REAL SIMULATION' in line:
-                        header_end = i + 1
-                        break
-                all_lines.extend(lines[header_end:])
+        #for workload in workloads:
+        #    with open(workload, 'r') as file:
+        #        lines = file.readlines()
+        #        header_end = 0
+        #        for i, line in enumerate(lines):
+        #            if 'REAL SIMULATION' in line:
+        #                header_end = i + 1
+        #                break
+        #        all_lines.extend(lines[header_end:])
         
-        #chunk_size = math.ceil(len(trace_lines) / num_hosts)
-        chunk_size = math.ceil(len(all_lines) / num_hosts)
+        ##chunk_size = math.ceil(len(trace_lines) / num_hosts)
+        #chunk_size = math.ceil(len(all_lines) / num_hosts)
 
-        for i in range(num_hosts):
-            #chunk = trace_lines[chunk_size * i : chunk_size * (i + 1)]
-            chunk = all_lines[chunk_size * i : chunk_size * (i + 1)]
-            if not chunk:
-                break
+        #for i in range(num_hosts):
+        #    #chunk = trace_lines[chunk_size * i : chunk_size * (i + 1)]
+        #    chunk = all_lines[chunk_size * i : chunk_size * (i + 1)]
+        #    if not chunk:
+        #        break
             
-            temporary = f'temporary_{i}.txt'
-            with open(temporary, 'w') as file:
-                file.write('REAL SIMULATION\n')
-                file.writelines(chunk)
-            self.hosts.append(Host(temporary, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
+        #    temporary = f'temporary_{i}.txt'
+        #    with open(temporary, 'w') as file:
+        #        file.write('REAL SIMULATION\n')
+        #        file.writelines(chunk)
+        #    self.hosts.append(Host(temporary, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
+
+
 
         self.all_hosts = self.hosts[:]
 
@@ -436,7 +514,6 @@ class CAPULET:
         miss_traffic = 0
         found_traffic = 0
         invalidate_traffic = 0
-        avg_hit_rate = 0
 
         if not os.path.isfile('stats.txt'):
             f = open('stats.txt', 'w')
@@ -446,7 +523,6 @@ class CAPULET:
         for i in range(len(self.all_hosts)):
             host = self.all_hosts[i]
             hit_rate = sum(host.metadata_cache.hits) / (sum(host.metadata_cache.hits) + sum(host.metadata_cache.misses))
-            avg_hit_rate += hit_rate
             read_hit_rate = host.metadata_cache.num_read_hits / (host.metadata_cache.num_read_hits + host.metadata_cache.num_read_misses)
             if host.metadata_cache.num_write_hits + host.metadata_cache.num_write_misses != 0:
                 write_hit_rate = host.metadata_cache.num_write_hits / (host.metadata_cache.num_write_hits + host.metadata_cache.num_write_misses)         #################################### Uncommented this
@@ -464,9 +540,8 @@ class CAPULET:
             found_traffic += host.metadata_cache.broadcast_found
             total_traffic += host.metadata_cache.broadcast_invalidates
             invalidate_traffic += host.metadata_cache.broadcast_invalidates
-        avg_hit_rate = avg_hit_rate / len(self.all_hosts)
 
-        print(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}\naverage hit rate:\t{avg_hit_rate}')
+        print(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
         f.write(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
         f.close()
 
