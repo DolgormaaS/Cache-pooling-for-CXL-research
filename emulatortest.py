@@ -37,6 +37,7 @@ class Cache:
         self.num_writebacks = 0
         self.num_invalidates = 0
         self.last_remote = 0           ##################### last remote cache to send the evicted address
+        self.accepting_remote = True
 
         self.addrs_to_offer = []
 
@@ -69,6 +70,12 @@ class Cache:
                     self.num_read_hits += 1
                 else:
                     self.num_write_hits += 1
+
+                if self.num_misses / self.num_accesses >= 0.5:
+                    self.accepting_remote = True
+                else:
+                    self.accepting_remote = False
+
                 return True
 
         self.num_misses += 1
@@ -76,19 +83,20 @@ class Cache:
             self.num_read_misses += 1
         else:
             self.num_write_misses += 1
+
+        if self.num_misses / self.num_accesses >= 0.5:
+            self.accepting_remote = True
+        else:
+            self.accepting_remote = False
+
         return False
 
     def fill(self, addr, cache_id, is_remote=False):
         idx = self.get_idx(addr)
         lru = self.blocks[idx][0]
         host_num = all_caches.index(self)
-        #to_cache = False ####################### Need to figure this out
         
-        #if lru.cache_id == host_num:
-        #    to_cache = True
         for blk in self.blocks[idx]:
-            #if lru.cache_id == host_num:
-            #    to_cache = True
             if blk.tag == -1:
                 blk.tag = self.get_tag(addr)     ################## This was only updating tag before
                 blk.lru = self.num_accesses
@@ -97,10 +105,6 @@ class Cache:
             elif blk.lru < lru.lru:
                 lru = blk
                 self.num_writebacks += 1
-                to_cache = True
-
-        #if to_cache == False and is_remote:
-        #    print("Not accepting remote blocks, evicting to main memory.")   ############################### Maybe later make this to signal the local host that it's not accepting so the host can move on to the next remote host
 
         if self.capulet and not is_remote:
             evicted_addr = (lru.tag << int(math.log(self.num_sets, 2)) | idx) << int(math.log(CACHE_BLOCK_SIZE, 2))   ###################### addr to evicted_addr
@@ -112,13 +116,13 @@ class Cache:
     
             for i in range(len(all_caches)):    ########## IF MISS RATE OF REMOTE HOST IS >=50, EVICT THE ADDRESS TO THAT HOST
                 r = (self.last_remote + i) % len(all_caches)
-                current_host_miss_rates = 0
-                if all_caches[r].num_misses + all_caches[r].num_hits == 0:
-                    current_host_miss_rates = 100
-                else:
-                    current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
-                if all_caches[r] != self and current_host_miss_rates >= 50:
-                    print(f"Evicting {cache_id} from {host_num}, to {r} with {current_host_miss_rates} miss rates.")
+                #current_host_miss_rates = 0
+                #if all_caches[r].num_misses + all_caches[r].num_hits == 0:
+                #    current_host_miss_rates = 100
+                #else:
+                #    current_host_miss_rates = all_caches[r].num_misses * 100 / (all_caches[r].num_misses + all_caches[r].num_hits)
+                if all_caches[r] != self and all_caches[r].accepting_remote:
+                    print(f"Evicting {cache_id} from {host_num}, to {r}.")
                     self.broadcast_offers += 1
                     all_caches[r].fill(evicted_addr, cache_id, is_remote = True)
                     self.last_remote = r + 1
