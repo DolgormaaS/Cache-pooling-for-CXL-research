@@ -387,7 +387,7 @@ class CAPULET:
                 self.hosts.append(Host(workload, MEM_SIZE * i * 2, (MEM_SIZE * i * 2) + MEM_SIZE, 0, capulet=True))
                 i += 1
 
-        elif num_hosts <= len(workloads):
+        elif num_hosts <= len(workloads):  ######### MAKE IT SO LAST TIMESTAMP OF PREVIOUS FILE < FIRST TIME OF NEXT FILE
             #1 or more hosts run 1 or more workloads
             workloads_per_host = int(len(workloads) / num_hosts)
             additional_workloads = int(len(workloads) % num_hosts)
@@ -399,6 +399,7 @@ class CAPULET:
                     additional_workloads -= 1
 
                 read_workloads = workloads[:amount_workloads]
+                last_timestamp_previous = 0
 
                 for workload in read_workloads: 
                     with open(workload, 'r') as file:
@@ -408,7 +409,25 @@ class CAPULET:
                             if 'REAL SIMULATION' in line:
                                 header_end = r + 1
                                 break
-                        all_lines.extend(lines[header_end:])
+
+                        trace_lines = lines[header_end:]
+
+                        if last_timestamp_previous == 0:
+                            all_lines.extend(lines[header_end:])
+                            last_timestamp_previous = int(trace_lines[-1].strip().split(',')[0])
+
+                        else:
+                            first_time_next = int(trace_lines[0].strip().split(',')[0])
+                            offset = 1 + last_timestamp_previous - first_time_next
+
+                            trace_lines2 = []
+                            for line in trace_lines:
+                                store = line.split(',', 1)
+                                new_timestamp = int(store[0]) + offset
+                                trace_lines2.append(f'{new_timestamp},{store[1]}')
+
+                            all_lines.extend(trace_lines2)
+                            last_timestamp_previous = int(trace_lines2[-1].strip().split(',')[0])
 
                 temporary = f'temporary_{i}.txt'
                 with open(temporary, 'w') as file:
