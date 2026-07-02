@@ -537,6 +537,8 @@ class CAPULET:
         miss_traffic = 0
         found_traffic = 0
         invalidate_traffic = 0
+        mean_miss_rate = 0
+        total_data_accesses = 0
 
         if not os.path.isfile('stats.txt'):
             f = open('stats.txt', 'w')
@@ -552,8 +554,10 @@ class CAPULET:
             else:
                 write_hit_rate = 0.
 
+            mean_miss_rate += 1 - hit_rate
+
             avg_auth_path = (sum(host.metadata_cache.hits) + sum(host.metadata_cache.misses)) / host.total_data_accesses
-            print(f'\nFinal stats dump for host {i}:\nhit rate:\t{hit_rate}\nread hit rate:\t{read_hit_rate}\nwrite hit rate:\t{write_hit_rate}\nhits:\t{host.metadata_cache.hits}\nmisses:\t{host.metadata_cache.misses}')
+            print(f'\nFinal stats dump for host {i}:\nhit r:ate:\t{hit_rate}\nread hit rate:\t{read_hit_rate}\nwrite hit rate:\t{write_hit_rate}\nhits:\t{host.metadata_cache.hits}\nmisses:\t{host.metadata_cache.misses}')
             f.write(f'\nFinal stats dump for host {i}:\nhit rate:\t{hit_rate}\nread hit rate:\t{read_hit_rate}\nwrite hit rate:\t{write_hit_rate}\nhits:\t{host.metadata_cache.hits}\nmisses:\t{host.metadata_cache.misses}')
             total_traffic += host.metadata_cache.broadcast_offers
             offer_traffic += host.metadata_cache.broadcast_offers
@@ -563,9 +567,12 @@ class CAPULET:
             found_traffic += host.metadata_cache.broadcast_found
             total_traffic += host.metadata_cache.broadcast_invalidates
             invalidate_traffic += host.metadata_cache.broadcast_invalidates
+            total_data_accesses += host.total_data_accesses
 
-        print(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
-        f.write(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}')
+        mean_miss_rate = mean_miss_rate / len(self.all_hosts)
+
+        print(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}\nmean miss rate:\t{mean_miss_rate}\ntotal data accesses:\t{total_data_accesses}')
+        f.write(f'traffic stats:\ntotal:\t{total_traffic}\noffer broadcast:\t{offer_traffic}\nmiss broadcast:\t{miss_traffic}\nremote_hit:\t{found_traffic}\ninvalidate:\t{invalidate_traffic}\nmean miss rate:\t{mean_miss_rate}\ntotal data accesses:\t{total_data_accesses}')
         f.close()
 
 def test_cache(c):
